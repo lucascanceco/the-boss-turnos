@@ -267,7 +267,7 @@ export default function App() {
           {/* Brand Zone */}
           <div className="flex items-center gap-3">
             <img 
-              src={BOSS_LOGO_URL} 
+              src="the_boss_logo_1790681628960.jpg" 
               alt="THE BOSS Logo" 
               className="w-10 h-10 rounded-xl object-cover border border-[#F4B400]/40 shadow-md"
             />
