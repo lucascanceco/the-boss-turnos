@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">THE BOSS Lavado Premium</string>
+    <string name="slogan">Detailing &amp; Lavado Premium</string>
+    <string name="operador_prompt">¿Quién está utilizando este dispositivo?</string>
+    <string name="whatsapp_template">Hola %1$s. Tu turno en THE BOSS Lavado Premium fue confirmado para el día %2$s a las %3$s. Servicio: %4$s. Muchas gracias.</string>
+</resources>

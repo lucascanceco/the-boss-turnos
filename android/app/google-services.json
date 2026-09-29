@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "379893259070",
+    "project_id": "theboss-96244",
+    "storage_bucket": "theboss-96244.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:379893259070:android:cdfd4726b4e9911690aa6f",
+        "android_client_info": {
+          "package_name": "com.theboss.lavadopremium"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYXrTuKlC4KDa2Ct3A-iqfBithYj8_6YM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

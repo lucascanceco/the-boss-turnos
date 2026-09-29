@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta Oficial THE BOSS Lavado Premium -->
+    <color name="boss_black">#121212</color>
+    <color name="boss_surface_dark">#1E1E1E</color>
+    <color name="boss_yellow">#F4B400</color>
+    <color name="boss_purple">#7B1FA2</color>
+    <color name="boss_white">#FFFFFF</color>
+    <color name="boss_text_muted">#9E9E9E</color>
+</resources>
