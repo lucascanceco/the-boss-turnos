@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import bossLogo from './assets/images/the_boss_logo_1790681628960.jpg';
+import heroImage from './assets/images/detailing_hero_1790681641667.jpg';
 import { 
   Smartphone, 
   Code2, 
@@ -29,8 +31,8 @@ import { PublicBookingPortal } from './components/PublicBookingPortal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 
 // Official Detailing Assets generated
-const BOSS_LOGO_URL = '/src/assets/images/the_boss_logo_1790681628960.jpg';
-const DETAILING_HERO_URL = '/src/assets/images/detailing_hero_1790681641667.jpg';
+const BOSS_LOGO_URL = bossLogo;
+const DETAILING_HERO_URL = heroImage;
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<'Lucas' | 'Franco'>('Lucas');
