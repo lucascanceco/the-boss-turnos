@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import bossLogo from './assets/images/the_boss_logo_1790681628960.jpg';
+import bossLogo from './assets/images/the_boss_logo_1790681628960.png';
 import heroImage from './assets/images/detailing_hero_1790681641667.jpg';
 import { 
   Smartphone, 
@@ -269,7 +269,7 @@ export default function App() {
           {/* Brand Zone */}
           <div className="flex items-center gap-3">
             <img 
-              src="the_boss_logo_1790681628960.jpg" 
+              src={bossLogo} 
               alt="THE BOSS Logo" 
               className="w-10 h-10 rounded-xl object-cover border border-[#F4B400]/40 shadow-md"
             />
