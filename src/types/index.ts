@@ -81,4 +81,17 @@ export interface FCMNotification {
   read: boolean;
 }
 
+export interface HorarioRango {
+  inicio: string;
+  fin: string;
+}
+
+export interface HorarioDia {
+  fecha: string;
+  habilitado: boolean;
+  rangos: HorarioRango[];
+  updatedAt?: number;
+  updatedBy?: 'Lucas' | 'Franco';
+}
+
 export type Operator = 'Lucas' | 'Franco';
