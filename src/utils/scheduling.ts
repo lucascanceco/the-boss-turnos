@@ -1,6 +1,37 @@
 import { HorarioDia, HorarioRango, Solicitud, Turno } from '../types';
 
 export const SLOT_DURATION_MINUTES = 120;
+export const SLOT_STEP_MINUTES = 30;
+export const DEFAULT_CLOSE_BUFFER_MINUTES = 60;
+
+/**
+ * Horario semanal predeterminado.
+ * Las fechas guardadas en Firebase funcionan como excepciones y reemplazan
+ * este horario para ese día concreto.
+ */
+export function getDefaultScheduleForDate(fecha: string): HorarioDia {
+  const [year, month, day] = fecha.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const dayOfWeek = date.getDay();
+
+  if (dayOfWeek === 0) {
+    return { fecha, habilitado: false, rangos: [] };
+  }
+
+  if (dayOfWeek === 6) {
+    return {
+      fecha,
+      habilitado: true,
+      rangos: [{ inicio: '07:30', fin: '19:00' }]
+    };
+  }
+
+  return {
+    fecha,
+    habilitado: true,
+    rangos: [{ inicio: '14:30', fin: '19:00' }]
+  };
+}
 
 export function timeToMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -13,16 +44,31 @@ export function minutesToTime(total: number): string {
   return `${hours}:${minutes}`;
 }
 
+/**
+ * Genera horarios de inicio cada 30 minutos.
+ *
+ * El horario configurado representa el horario habitual del local.
+ * Para mantener el último inicio a las 18:00 cuando el cierre es a las
+ * 19:00, se permite iniciar hasta una hora antes del cierre.
+ */
 export function generateSlotsForRange(range: HorarioRango): string[] {
   const start = timeToMinutes(range.inicio);
   const end = timeToMinutes(range.fin);
+  const latestStart = end - DEFAULT_CLOSE_BUFFER_MINUTES;
   const slots: string[] = [];
 
-  for (let minute = start; minute + SLOT_DURATION_MINUTES <= end; minute += SLOT_DURATION_MINUTES) {
+  for (let minute = start; minute <= latestStart; minute += SLOT_STEP_MINUTES) {
     slots.push(minutesToTime(minute));
   }
 
   return slots;
+}
+
+export function getEffectiveSchedule(
+  fecha: string,
+  schedules: Record<string, HorarioDia>
+): HorarioDia {
+  return schedules[fecha] ?? getDefaultScheduleForDate(fecha);
 }
 
 export function getSlotsForDay(schedule?: HorarioDia | null): string[] {
@@ -34,7 +80,7 @@ export function getSlotsForDay(schedule?: HorarioDia | null): string[] {
 }
 
 export function isActiveTurno(turno: Turno): boolean {
-  return turno.estado !== 'Cancelado';
+  return turno.estado !== 'Cancelado' && turno.estado !== 'Finalizado';
 }
 
 export function isActiveSolicitud(solicitud: Solicitud): boolean {
@@ -48,6 +94,7 @@ export function isSlotOccupied(
   solicitudes: Solicitud[]
 ): boolean {
   const requested = timeToMinutes(hora);
+
   const hasTurno = turnos.some((turno) => {
     if (turno.fecha !== fecha || !isActiveTurno(turno)) return false;
     const start = timeToMinutes(turno.hora);
@@ -79,8 +126,17 @@ export function getNextAvailableDate(
   turnos: Turno[],
   solicitudes: Solicitud[]
 ): string | undefined {
-  return Object.keys(schedules)
-    .filter((date) => date >= new Date().toISOString().slice(0, 10))
-    .sort()
-    .find((date) => getAvailableSlots(date, schedules[date], turnos, solicitudes).length > 0);
+  const today = new Date();
+  for (let i = 0; i < 90; i += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    const fecha = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const schedule = getEffectiveSchedule(fecha, schedules);
+
+    if (getAvailableSlots(fecha, schedule, turnos, solicitudes).length > 0) {
+      return fecha;
+    }
+  }
+
+  return undefined;
 }
