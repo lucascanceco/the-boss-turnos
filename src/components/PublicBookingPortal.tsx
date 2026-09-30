@@ -4,7 +4,7 @@ import { Solicitud, TipoVehiculo, VehiclePricing } from '../types';
 
 interface PublicBookingPortalProps {
   vehiclePricing: VehiclePricing;
-  onSubmitSolicitud: (solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>) => { success: boolean; collisionWarning?: boolean };
+  onSubmitSolicitud: (solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>) => Promise<{ success: boolean; collisionWarning?: boolean }>;
 }
 
 export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehiclePricing, onSubmitSolicitud }) => {
@@ -17,16 +17,21 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
   const [observaciones, setObservaciones] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [collisionWarning, setCollisionWarning] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentPrice = vehiclePricing[tipoVehiculo];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cliente.trim() || !telefono.trim() || !vehiculo.trim()) {
+    if (!cliente.trim() || !telefono.trim() || !vehiculo.trim() || isSubmitting) {
       return;
     }
 
-    const res = onSubmitSolicitud({
+    setIsSubmitting(true);
+    setSubmitError(false);
+
+    const res = await onSubmitSolicitud({
       cliente: cliente.trim(),
       telefono: telefono.trim(),
       vehiculo: vehiculo.trim(),
@@ -37,6 +42,13 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
       hora,
       observaciones: observaciones.trim()
     });
+
+    setIsSubmitting(false);
+
+    if (!res.success) {
+      setSubmitError(true);
+      return;
+    }
 
     setCollisionWarning(Boolean(res.collisionWarning));
     setSubmitted(true);
@@ -50,6 +62,8 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
     setObservaciones('');
     setSubmitted(false);
     setCollisionWarning(false);
+    setSubmitError(false);
+    setIsSubmitting(false);
   };
 
   return (
@@ -121,6 +135,11 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="pt-6 space-y-4">
+          {submitError && (
+            <div className="p-3 bg-red-950/70 border border-red-500 rounded-xl text-xs text-red-200">
+              No pudimos enviar la solicitud. Verifica tu conexión e inténtalo nuevamente.
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center gap-1.5">
@@ -256,7 +275,7 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
             type="submit"
             className="w-full py-3 bg-[#F4B400] hover:bg-[#ffc820] text-black font-black text-sm rounded-xl uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg"
           >
-            <Send className="w-4 h-4" /> Solicitar Turno en THE BOSS
+            <Send className="w-4 h-4" /> {isSubmitting ? 'Enviando solicitud...' : 'Solicitar Turno en THE BOSS'}
           </button>
         </form>
       )}
