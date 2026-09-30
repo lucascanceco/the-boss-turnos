@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Send, CheckCircle2, Sparkles, Clock, Calendar, Car, Phone, User, ShieldAlert, DollarSign, ChevronDown } from 'lucide-react';
+import { Send, CheckCircle2, Sparkles, Clock, Calendar, Car, Phone, User, DollarSign, ChevronDown } from 'lucide-react';
 import { Solicitud, TipoVehiculo, VehiclePricing } from '../types';
 
 interface PublicBookingPortalProps {
@@ -18,7 +18,6 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
   const [hora, setHora] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [collisionWarning, setCollisionWarning] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,6 +46,7 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
 
     if (!fecha || !hora || !availableSlots.includes(hora)) {
       setSubmitError(true);
+      setIsSubmitting(false);
       return;
     }
 
@@ -69,7 +69,6 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
       return;
     }
 
-    setCollisionWarning(Boolean(res.collisionWarning));
     setSubmitted(true);
   };
 
@@ -80,7 +79,6 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
     setTipoVehiculo('Auto');
     setObservaciones('');
     setSubmitted(false);
-    setCollisionWarning(false);
     setSubmitError(false);
     setIsSubmitting(false);
   };
@@ -131,15 +129,6 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
               <span className="font-bold text-white">{fecha} a las {hora} hs</span>
             </div>
           </div>
-
-          {collisionWarning && (
-            <div className="p-3 bg-[#F4B400]/15 border border-[#F4B400] rounded-lg max-w-md mx-auto flex items-start gap-2 text-left">
-              <ShieldAlert className="w-4 h-4 text-[#F4B400] shrink-0 mt-0.5" />
-              <p className="text-xs text-[#F4B400]">
-                <strong>Nota:</strong> Ese horario ya cuenta con una reserva activa. Lucas y Franco recibirán tu pedido y podrán sugerirte un horario alternativo con la opción <em>Reprogramar</em>.
-              </p>
-            </div>
-          )}
 
           <p className="text-xs text-neutral-400">
             Revisa la pestaña <strong>"📱 App Móvil"</strong> para ver cómo llega en tiempo real a la bandeja de <strong>Solicitudes</strong> de THE BOSS.
@@ -286,6 +275,7 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
               </select>
               <p className="text-[10px] text-neutral-500 mt-1">Los turnos se asignan en bloques de 2 horas.</p>
             </div>
+          </div>
 
           <div>
             <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
