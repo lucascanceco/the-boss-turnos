@@ -1,24 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Send, CheckCircle2, Sparkles, Clock, Calendar, Car, Phone, User, ShieldAlert, DollarSign, ChevronDown } from 'lucide-react';
 import { Solicitud, TipoVehiculo, VehiclePricing } from '../types';
 
 interface PublicBookingPortalProps {
   vehiclePricing: VehiclePricing;
-  onSubmitSolicitud: (solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>) => Promise<{ success: boolean; collisionWarning?: boolean }>;
+  availableDates: string[];
+  getAvailableSlots: (fecha: string) => string[];
+  onSubmitSolicitud: (solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>) => Promise<{ success: boolean; collisionWarning?: boolean; error?: string }>;
 }
 
-export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehiclePricing, onSubmitSolicitud }) => {
+export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehiclePricing, availableDates, getAvailableSlots, onSubmitSolicitud }) => {
   const [cliente, setCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [vehiculo, setVehiculo] = useState('');
   const [tipoVehiculo, setTipoVehiculo] = useState<TipoVehiculo>('Auto');
-  const [fecha, setFecha] = useState('2026-09-30');
-  const [hora, setHora] = useState('11:00');
+  const [fecha, setFecha] = useState('');
+  const [hora, setHora] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [collisionWarning, setCollisionWarning] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const availableSlots = getAvailableSlots(fecha);
+
+  useEffect(() => {
+    if (!availableDates.includes(fecha)) {
+      setFecha(availableDates[0] || '');
+      return;
+    }
+    if (!availableSlots.includes(hora)) {
+      setHora(availableSlots[0] || '');
+    }
+  }, [availableDates, fecha, availableSlots, hora]);
 
   const currentPrice = vehiclePricing[tipoVehiculo];
 
@@ -30,6 +44,11 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
 
     setIsSubmitting(true);
     setSubmitError(false);
+
+    if (!fecha || !hora || !availableSlots.includes(hora)) {
+      setSubmitError(true);
+      return;
+    }
 
     const res = await onSubmitSolicitud({
       cliente: cliente.trim(),
@@ -137,7 +156,13 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
         <form onSubmit={handleSubmit} className="pt-6 space-y-4">
           {submitError && (
             <div className="p-3 bg-red-950/70 border border-red-500 rounded-xl text-xs text-red-200">
-              No pudimos enviar la solicitud. Verifica tu conexión e inténtalo nuevamente.
+              El horario seleccionado ya no está disponible o no pudimos enviar la solicitud. Volvé a elegir un horario disponible e intentá nuevamente.
+            </div>
+          )}
+
+          {availableDates.length === 0 && (
+            <div className="p-4 bg-[#F4B400]/10 border border-[#F4B400]/40 rounded-xl text-sm text-[#F4B400]">
+              En este momento no hay días y horarios habilitados para solicitar turnos. Por favor consultanos directamente.
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -227,36 +252,40 @@ export const PublicBookingPortal: React.FC<PublicBookingPortalProps> = ({ vehicl
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#F4B400]" /> Fecha Deseada
+                <Calendar className="w-3.5 h-3.5 text-[#F4B400]" /> Fecha Disponible
               </label>
-              <input
-                type="date"
+              <select
                 required
                 value={fecha}
                 onChange={e => setFecha(e.target.value)}
-                className="w-full bg-[#1F1F1F] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F4B400]"
-              />
+                disabled={availableDates.length === 0}
+                className="w-full bg-[#1F1F1F] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F4B400] disabled:opacity-50"
+              >
+                <option value="">Seleccioná una fecha</option>
+                {availableDates.map(date => (
+                  <option key={date} value={date}>{date}</option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#F4B400]" /> Horario de Preferencia
+                <Clock className="w-3.5 h-3.5 text-[#F4B400]" /> Horario Disponible
               </label>
               <select
+                required
                 value={hora}
                 onChange={e => setHora(e.target.value)}
-                className="w-full bg-[#1F1F1F] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F4B400]"
+                disabled={!fecha || availableSlots.length === 0}
+                className="w-full bg-[#1F1F1F] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F4B400] disabled:opacity-50"
               >
-                <option value="09:00">09:00 hs</option>
-                <option value="10:00">10:00 hs</option>
-                <option value="11:00">11:00 hs</option>
-                <option value="11:30">11:30 hs</option>
-                <option value="14:00">14:00 hs</option>
-                <option value="15:30">15:30 hs</option>
-                <option value="17:00">17:00 hs</option>
+                <option value="">Seleccioná un horario</option>
+                {availableSlots.map(slot => (
+                  <option key={slot} value={slot}>{slot} hs</option>
+                ))}
               </select>
+              <p className="text-[10px] text-neutral-500 mt-1">Los turnos se asignan en bloques de 2 horas.</p>
             </div>
-          </div>
 
           <div>
             <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
