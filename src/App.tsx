@@ -4,7 +4,7 @@ import { DEFAULT_VEHICLE_PRICING } from './data/mockData';
 import { HorarioDia, Solicitud, Turno, VehiclePricing } from './types';
 import { push, ref, remove, runTransaction, set, onValue, serverTimestamp } from 'firebase/database';
 import { db } from './firebase';
-import { getAvailableSlots, getSlotsForDay, isSlotOccupied } from './utils/scheduling';
+import { getAvailableSlots, getEffectiveSchedule, getSlotsForDay, isSlotOccupied } from './utils/scheduling';
 
 export default function App() {
   const [vehiclePricing] = useState<VehiclePricing>(DEFAULT_VEHICLE_PRICING);
@@ -90,15 +90,25 @@ export default function App() {
   }, []);
 
   const availableDates = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return Object.keys(schedules)
-      .filter((date) => date >= today && getSlotsForDay(schedules[date]).length > 0)
-      .sort()
-      .filter((date) => getAvailableSlots(date, schedules[date], turnos, solicitudes).length > 0);
+    const today = new Date();
+    const dates: string[] = [];
+
+    for (let i = 0; i < 90; i += 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      const fecha = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const schedule = getEffectiveSchedule(fecha, schedules);
+
+      if (getAvailableSlots(fecha, schedule, turnos, solicitudes).length > 0) {
+        dates.push(fecha);
+      }
+    }
+
+    return dates;
   }, [schedules, turnos, solicitudes]);
 
   const getSlots = (fecha: string) =>
-    getAvailableSlots(fecha, schedules[fecha], turnos, solicitudes);
+    getAvailableSlots(fecha, getEffectiveSchedule(fecha, schedules), turnos, solicitudes);
 
   const handlePublicSubmitSolicitud = async (
     solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>
