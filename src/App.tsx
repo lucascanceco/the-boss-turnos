@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PublicBookingPortal } from './components/PublicBookingPortal';
 import { DEFAULT_VEHICLE_PRICING } from './data/mockData';
 import { Solicitud, VehiclePricing } from './types';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { push, ref, set, serverTimestamp } from 'firebase/database';
 import { db } from './firebase';
 
 export default function App() {
@@ -12,13 +12,16 @@ export default function App() {
     solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>
   ) => {
     try {
-      await addDoc(collection(db, 'solicitudes'), {
+      const solicitudRef = push(ref(db, 'solicitudes'));
+
+      await set(solicitudRef, {
+        id: solicitudRef.key,
         ...solicitud,
         estado: 'Pendiente',
         createdAt: serverTimestamp()
       });
 
-      console.log('Solicitud guardada en Firebase:', solicitud);
+      console.log('Solicitud guardada en Firebase Realtime Database:', solicitudRef.key);
 
       return {
         success: true,
