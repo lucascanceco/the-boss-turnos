@@ -2,21 +2,36 @@ import React, { useState } from 'react';
 import { PublicBookingPortal } from './components/PublicBookingPortal';
 import { DEFAULT_VEHICLE_PRICING } from './data/mockData';
 import { Solicitud, VehiclePricing } from './types';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase';
 
 export default function App() {
   const [vehiclePricing] = useState<VehiclePricing>(DEFAULT_VEHICLE_PRICING);
 
-  const handlePublicSubmitSolicitud = (
+  const handlePublicSubmitSolicitud = async (
     solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>
   ) => {
-    // La web pública recibe la solicitud y muestra la confirmación al cliente.
-    // La integración con una base de datos/backend podrá agregarse posteriormente.
-    console.log('Solicitud de turno:', solicitud);
+    try {
+      await addDoc(collection(db, 'solicitudes'), {
+        ...solicitud,
+        estado: 'Pendiente',
+        createdAt: serverTimestamp()
+      });
 
-    return {
-      success: true,
-      collisionWarning: false
-    };
+      console.log('Solicitud guardada en Firebase:', solicitud);
+
+      return {
+        success: true,
+        collisionWarning: false
+      };
+    } catch (error) {
+      console.error('Error al guardar la solicitud en Firebase:', error);
+
+      return {
+        success: false,
+        collisionWarning: false
+      };
+    }
   };
 
   return (
