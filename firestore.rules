@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /solicitudes/{solicitudId} {
+      // La web pública puede crear solicitudes.
+      allow create: if
+        request.resource.data.cliente is string &&
+        request.resource.data.telefono is string &&
+        request.resource.data.vehiculo is string &&
+        request.resource.data.fecha is string &&
+        request.resource.data.hora is string &&
+        request.resource.data.estado == 'Pendiente';
+
+      // La lectura y gestión de solicitudes queda reservada
+      // para usuarios autenticados en Firebase.
+      allow read, update, delete: if request.auth != null;
+    }
+  }
+}
