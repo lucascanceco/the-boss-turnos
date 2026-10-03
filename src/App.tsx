@@ -1,16 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PublicBookingPortal } from './components/PublicBookingPortal';
 import { DEFAULT_VEHICLE_PRICING } from './data/mockData';
-import { HorarioDia, Solicitud, Turno, VehiclePricing } from './types';
+import { HorarioDia, Solicitud, VehiclePricing } from './types';
 import { push, ref, remove, runTransaction, set, onValue, serverTimestamp } from 'firebase/database';
 import { db } from './firebase';
-import { getAvailableSlots, getEffectiveSchedule, isSlotOccupied } from './utils/scheduling';
+import {
+  getAvailableSlots,
+  getEffectiveSchedule,
+  isSlotOccupied,
+  ReservationSlot
+} from './utils/scheduling';
 
 export default function App() {
   const [vehiclePricing] = useState<VehiclePricing>(DEFAULT_VEHICLE_PRICING);
   const [schedules, setSchedules] = useState<Record<string, HorarioDia>>({});
-  const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [reservations, setReservations] = useState<ReservationSlot[]>([]);
 
   useEffect(() => {
     const unsubscribeSchedules = onValue(ref(db, 'configuracion/horarios'), (snapshot) => {
@@ -32,60 +36,26 @@ export default function App() {
       setSchedules(next);
     });
 
-    const unsubscribeTurnos = onValue(ref(db, 'turnos'), (snapshot) => {
-      const next: Turno[] = [];
-      snapshot.forEach((child) => {
-        const value = child.val();
-        if (!value || Number(value.deletedAt || 0) > 0) return;
-        next.push({
-          id: child.key || value.id || '',
-          cliente: value.cliente || '',
-          telefono: value.telefono || '',
-          vehiculo: value.vehiculo || '',
-          patente: value.patente || '',
-          servicio: value.servicio || '',
-          fecha: value.fecha || '',
-          hora: value.hora || '',
-          observaciones: value.observaciones || '',
-          estado: value.estado || 'Pendiente',
-          tipoVehiculo: value.tipoVehiculo,
-          precio: Number(value.precio || 0),
-          createdAt: Number(value.createdAt || 0),
-          updatedBy: value.updatedBy
+    // The public portal only needs date/time occupancy. It no longer downloads
+    // turnos or solicitudes, which keeps customer names and phone numbers out
+    // of the public browser session.
+    const unsubscribeReservations = onValue(ref(db, 'reservas'), (snapshot) => {
+      const next: ReservationSlot[] = [];
+      snapshot.forEach((dateChild) => {
+        const fecha = dateChild.key || '';
+        dateChild.forEach((slotChild) => {
+          const value = slotChild.val();
+          if (!value) return;
+          const hora = value.hora || slotChild.key || '';
+          if (fecha && hora) next.push({ fecha, hora });
         });
       });
-      setTurnos(next);
-    });
-
-    const unsubscribeSolicitudes = onValue(ref(db, 'solicitudes'), (snapshot) => {
-      const next: Solicitud[] = [];
-      snapshot.forEach((child) => {
-        const value = child.val();
-        if (!value) return;
-        next.push({
-          id: child.key || value.id || '',
-          cliente: value.cliente || '',
-          telefono: value.telefono || '',
-          vehiculo: value.vehiculo || '',
-          patente: value.patente || '',
-          servicio: value.servicio || '',
-          fecha: value.fecha || '',
-          hora: value.hora || '',
-          observaciones: value.observaciones || '',
-          estado: value.estado || 'Pendiente',
-          sugerenciaHorario: value.sugerenciaHorario || '',
-          createdAt: Number(value.createdAt || 0),
-          tipoVehiculo: value.tipoVehiculo,
-          precio: Number(value.precio || 0)
-        });
-      });
-      setSolicitudes(next);
+      setReservations(next);
     });
 
     return () => {
       unsubscribeSchedules();
-      unsubscribeTurnos();
-      unsubscribeSolicitudes();
+      unsubscribeReservations();
     };
   }, []);
 
@@ -99,23 +69,23 @@ export default function App() {
       const fecha = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const schedule = getEffectiveSchedule(fecha, schedules);
 
-      if (getAvailableSlots(fecha, schedule, turnos, solicitudes).length > 0) {
+      if (getAvailableSlots(fecha, schedule, reservations).length > 0) {
         dates.push(fecha);
       }
     }
 
     return dates;
-  }, [schedules, turnos, solicitudes]);
+  }, [schedules, reservations]);
 
   const getSlots = (fecha: string) =>
-    getAvailableSlots(fecha, getEffectiveSchedule(fecha, schedules), turnos, solicitudes);
+    getAvailableSlots(fecha, getEffectiveSchedule(fecha, schedules), reservations);
 
   const handlePublicSubmitSolicitud = async (
     solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>
   ) => {
     try {
       const slots = getSlots(solicitud.fecha);
-      if (!slots.includes(solicitud.hora) || isSlotOccupied(solicitud.fecha, solicitud.hora, turnos, solicitudes)) {
+      if (!slots.includes(solicitud.hora) || isSlotOccupied(solicitud.fecha, solicitud.hora, reservations)) {
         return {
           success: false,
           collisionWarning: true,
@@ -127,9 +97,6 @@ export default function App() {
       const solicitudId = solicitudRef.key;
       if (!solicitudId) throw new Error('No se pudo generar el identificador de la solicitud.');
 
-      // Keep the public write scoped to one child so it works with the existing
-      // create-only/public reservation rules. Full two-hour collisions are
-      // checked from the realtime turnos/solicitudes snapshot immediately above.
       const reservationRef = ref(db, `reservas/${solicitud.fecha}/${solicitud.hora}`);
       const transaction = await runTransaction(reservationRef, (current) => {
         if (current !== null) return;
