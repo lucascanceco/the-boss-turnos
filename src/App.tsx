@@ -9,8 +9,10 @@ import {
   getAvailableSlots,
   getEffectiveSchedule,
   isSlotOccupied,
+  minutesToTime,
   ReservationSlot,
   SLOT_DURATION_MINUTES,
+  SLOT_STEP_MINUTES,
   timeToMinutes
 } from './utils/scheduling';
 
@@ -49,17 +51,22 @@ export default function App() {
         setSchedules(next);
       });
 
-      // The public portal only needs occupancy. Customer data never needs to be
-      // downloaded into the public browser session.
+      // Reservation blocks contain no customer data. Multiple 15-minute lock
+      // rows for the same wash are collapsed back to one visible start time.
       unsubscribeReservations = onValue(ref(db, 'reservas'), (snapshot) => {
         const next: ReservationSlot[] = [];
+        const seen = new Set<string>();
         snapshot.forEach((dateChild) => {
           const fecha = dateChild.key || '';
           dateChild.forEach((slotChild) => {
             const value = slotChild.val();
             if (!value) return;
             const hora = value.hora || slotChild.key || '';
-            if (fecha && hora) next.push({ fecha, hora });
+            const key = `${fecha}|${hora}`;
+            if (fecha && hora && !seen.has(key)) {
+              seen.add(key);
+              next.push({ fecha, hora });
+            }
           });
         });
         setReservations(next);
@@ -103,6 +110,8 @@ export default function App() {
   const handlePublicSubmitSolicitud = async (
     solicitud: Omit<Solicitud, 'id' | 'estado' | 'createdAt'>
   ) => {
+    const acquiredBlocks: string[] = [];
+
     try {
       const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
       const slots = getSlots(solicitud.fecha);
@@ -119,44 +128,39 @@ export default function App() {
       if (!solicitudId) throw new Error('No se pudo generar el identificador de la solicitud.');
 
       const requestedStart = timeToMinutes(solicitud.hora);
-      const reservationDateRef = ref(db, `reservas/${solicitud.fecha}`);
-      const transaction = await runTransaction(reservationDateRef, (current) => {
-        const currentReservations: Record<string, any> =
-          current && typeof current === 'object' ? current as Record<string, any> : {};
+      const blockCount = SLOT_DURATION_MINUTES / SLOT_STEP_MINUTES;
+      const blockTimes = Array.from({ length: blockCount }, (_, index) =>
+        minutesToTime(requestedStart + (index * SLOT_STEP_MINUTES))
+      );
 
-        for (const [existingTime, existing] of Object.entries(currentReservations)) {
-          if (!existing) continue;
-          const existingStart = timeToMinutes(existingTime);
-          if (existingStart < 0) continue;
-
-          const requestedEnd = requestedStart + SLOT_DURATION_MINUTES;
-          const existingEnd = existingStart + SLOT_DURATION_MINUTES;
-          const overlaps = requestedStart < existingEnd && existingStart < requestedEnd;
-          if (overlaps) return;
-        }
-
-        return {
-          ...currentReservations,
-          [solicitud.hora]: {
+      for (const blockHora of blockTimes) {
+        const blockRef = ref(db, `reservas/${solicitud.fecha}/${blockHora}`);
+        const transaction = await runTransaction(blockRef, (current) => {
+          if (current !== null) return;
+          return {
             ownerId: solicitudId,
             ownerType: 'solicitud',
             ownerUid: user.uid,
             fecha: solicitud.fecha,
             hora: solicitud.hora,
+            blockHora,
             createdAt: serverTimestamp()
-          }
-        };
-      });
+          };
+        });
 
-      if (!transaction.committed) {
-        return {
-          success: false,
-          collisionWarning: true,
-          error: 'Ese horario acaba de ser ocupado por otra reserva. Seleccioná otro horario.'
-        };
+        if (!transaction.committed) {
+          await Promise.allSettled(
+            acquiredBlocks.map((block) => remove(ref(db, `reservas/${solicitud.fecha}/${block}`)))
+          );
+          return {
+            success: false,
+            collisionWarning: true,
+            error: 'Ese horario acaba de ser ocupado por otra reserva. Seleccioná otro horario.'
+          };
+        }
+        acquiredBlocks.push(blockHora);
       }
 
-      const reservationRef = ref(db, `reservas/${solicitud.fecha}/${solicitud.hora}`);
       try {
         await set(solicitudRef, {
           id: solicitudId,
@@ -167,13 +171,20 @@ export default function App() {
           updatedAt: serverTimestamp()
         });
       } catch (error) {
-        await remove(reservationRef);
+        await Promise.allSettled(
+          acquiredBlocks.map((block) => remove(ref(db, `reservas/${solicitud.fecha}/${block}`)))
+        );
         throw error;
       }
 
       return { success: true, collisionWarning: false };
     } catch (error) {
       console.error('Error al guardar la solicitud en Firebase:', error);
+      if (acquiredBlocks.length > 0) {
+        await Promise.allSettled(
+          acquiredBlocks.map((block) => remove(ref(db, `reservas/${solicitud.fecha}/${block}`)))
+        );
+      }
       return {
         success: false,
         collisionWarning: false,
