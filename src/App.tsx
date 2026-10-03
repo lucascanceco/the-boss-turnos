@@ -4,7 +4,13 @@ import { DEFAULT_VEHICLE_PRICING } from './data/mockData';
 import { HorarioDia, Solicitud, Turno, VehiclePricing } from './types';
 import { push, ref, remove, runTransaction, set, onValue, serverTimestamp } from 'firebase/database';
 import { db } from './firebase';
-import { getAvailableSlots, getEffectiveSchedule, getSlotsForDay, isSlotOccupied } from './utils/scheduling';
+import {
+  getAvailableSlots,
+  getEffectiveSchedule,
+  intervalsOverlap,
+  isSlotOccupied,
+  timeToMinutes
+} from './utils/scheduling';
 
 export default function App() {
   const [vehiclePricing] = useState<VehiclePricing>(DEFAULT_VEHICLE_PRICING);
@@ -36,7 +42,7 @@ export default function App() {
       const next: Turno[] = [];
       snapshot.forEach((child) => {
         const value = child.val();
-        if (!value) return;
+        if (!value || Number(value.deletedAt || 0) > 0) return;
         next.push({
           id: child.key || value.id || '',
           cliente: value.cliente || '',
@@ -127,15 +133,31 @@ export default function App() {
       const solicitudId = solicitudRef.key;
       if (!solicitudId) throw new Error('No se pudo generar el identificador de la solicitud.');
 
-      const reservationRef = ref(db, `reservas/${solicitud.fecha}/${solicitud.hora}`);
-      const transaction = await runTransaction(reservationRef, (current) => {
-        if (current !== null) return;
+      const requestedStart = timeToMinutes(solicitud.hora);
+      const reservationDateRef = ref(db, `reservas/${solicitud.fecha}`);
+      const reservationSlotRef = ref(db, `reservas/${solicitud.fecha}/${solicitud.hora}`);
+      const transaction = await runTransaction(reservationDateRef, (current) => {
+        const reservations = current && typeof current === 'object'
+          ? current as Record<string, { ownerId?: string; hora?: string }>
+          : {};
+
+        const hasConflict = Object.entries(reservations).some(([key, value]) => {
+          if (!value) return false;
+          const existingTime = key || value.hora || '';
+          return intervalsOverlap(requestedStart, timeToMinutes(existingTime));
+        });
+
+        if (hasConflict) return;
+
         return {
-          ownerId: solicitudId,
-          ownerType: 'solicitud',
-          fecha: solicitud.fecha,
-          hora: solicitud.hora,
-          createdAt: serverTimestamp()
+          ...reservations,
+          [solicitud.hora]: {
+            ownerId: solicitudId,
+            ownerType: 'solicitud',
+            fecha: solicitud.fecha,
+            hora: solicitud.hora,
+            createdAt: serverTimestamp()
+          }
         };
       });
 
@@ -152,10 +174,11 @@ export default function App() {
           id: solicitudId,
           ...solicitud,
           estado: 'Pendiente',
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
       } catch (error) {
-        await remove(reservationRef);
+        await remove(reservationSlotRef);
         throw error;
       }
 
