@@ -1,8 +1,13 @@
-import { HorarioDia, HorarioRango, Solicitud, Turno } from '../types';
+import { HorarioDia, HorarioRango } from '../types';
 
 export const SLOT_DURATION_MINUTES = 120;
 export const SLOT_STEP_MINUTES = 15;
 export const DEFAULT_CLOSE_BUFFER_MINUTES = 60;
+
+export interface ReservationSlot {
+  fecha: string;
+  hora: string;
+}
 
 /**
  * Horario semanal predeterminado.
@@ -89,50 +94,32 @@ export function getSlotsForDay(schedule?: HorarioDia | null): string[] {
   ).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
 }
 
-export function isActiveTurno(turno: Turno): boolean {
-  return turno.estado !== 'Cancelado' && turno.estado !== 'Finalizado';
-}
-
-export function isActiveSolicitud(solicitud: Solicitud): boolean {
-  return solicitud.estado === 'Pendiente' || solicitud.estado === 'Aprobada';
-}
-
 export function isSlotOccupied(
   fecha: string,
   hora: string,
-  turnos: Turno[],
-  solicitudes: Solicitud[]
+  reservations: ReservationSlot[]
 ): boolean {
   const requested = timeToMinutes(hora);
 
-  const hasTurno = turnos.some((turno) => {
-    if (turno.fecha !== fecha || !isActiveTurno(turno)) return false;
-    return intervalsOverlap(requested, timeToMinutes(turno.hora));
-  });
-
-  if (hasTurno) return true;
-
-  return solicitudes.some((solicitud) => {
-    if (solicitud.fecha !== fecha || !isActiveSolicitud(solicitud)) return false;
-    return intervalsOverlap(requested, timeToMinutes(solicitud.hora));
+  return reservations.some((reservation) => {
+    if (reservation.fecha !== fecha) return false;
+    return intervalsOverlap(requested, timeToMinutes(reservation.hora));
   });
 }
 
 export function getAvailableSlots(
   fecha: string,
   schedule: HorarioDia | undefined,
-  turnos: Turno[],
-  solicitudes: Solicitud[]
+  reservations: ReservationSlot[]
 ): string[] {
   return getSlotsForDay(schedule).filter(
-    (hora) => !isSlotOccupied(fecha, hora, turnos, solicitudes)
+    (hora) => !isSlotOccupied(fecha, hora, reservations)
   );
 }
 
 export function getNextAvailableDate(
   schedules: Record<string, HorarioDia>,
-  turnos: Turno[],
-  solicitudes: Solicitud[]
+  reservations: ReservationSlot[]
 ): string | undefined {
   const today = new Date();
   for (let i = 0; i < 90; i += 1) {
@@ -141,7 +128,7 @@ export function getNextAvailableDate(
     const fecha = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     const schedule = getEffectiveSchedule(fecha, schedules);
 
-    if (getAvailableSlots(fecha, schedule, turnos, solicitudes).length > 0) {
+    if (getAvailableSlots(fecha, schedule, reservations).length > 0) {
       return fecha;
     }
   }
