@@ -1,7 +1,7 @@
 import { HorarioDia, HorarioRango, Solicitud, Turno } from '../types';
 
 export const SLOT_DURATION_MINUTES = 120;
-export const SLOT_STEP_MINUTES = 30;
+export const SLOT_STEP_MINUTES = 15;
 export const DEFAULT_CLOSE_BUFFER_MINUTES = 60;
 
 /**
@@ -35,6 +35,9 @@ export function getDefaultScheduleForDate(fecha: string): HorarioDia {
 
 export function timeToMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return -1;
+  }
   return (hours * 60) + minutes;
 }
 
@@ -44,16 +47,23 @@ export function minutesToTime(total: number): string {
   return `${hours}:${minutes}`;
 }
 
+export function intervalsOverlap(firstStart: number, secondStart: number): boolean {
+  if (firstStart < 0 || secondStart < 0) return false;
+  const firstEnd = firstStart + SLOT_DURATION_MINUTES;
+  const secondEnd = secondStart + SLOT_DURATION_MINUTES;
+  return firstStart < secondEnd && secondStart < firstEnd;
+}
+
 /**
- * Genera horarios de inicio cada 30 minutos.
- *
- * El horario configurado representa el horario habitual del local.
- * Para mantener el último inicio a las 18:00 cuando el cierre es a las
- * 19:00, se permite iniciar hasta una hora antes del cierre.
+ * Genera horarios de inicio cada 15 minutos.
+ * El horario configurado representa el horario habitual del local y el último
+ * inicio permitido queda una hora antes del fin configurado.
  */
 export function generateSlotsForRange(range: HorarioRango): string[] {
   const start = timeToMinutes(range.inicio);
   const end = timeToMinutes(range.fin);
+  if (start < 0 || end <= start) return [];
+
   const latestStart = end - DEFAULT_CLOSE_BUFFER_MINUTES;
   const slots: string[] = [];
 
@@ -97,16 +107,14 @@ export function isSlotOccupied(
 
   const hasTurno = turnos.some((turno) => {
     if (turno.fecha !== fecha || !isActiveTurno(turno)) return false;
-    const start = timeToMinutes(turno.hora);
-    return Math.abs(start - requested) < SLOT_DURATION_MINUTES;
+    return intervalsOverlap(requested, timeToMinutes(turno.hora));
   });
 
   if (hasTurno) return true;
 
   return solicitudes.some((solicitud) => {
     if (solicitud.fecha !== fecha || !isActiveSolicitud(solicitud)) return false;
-    const start = timeToMinutes(solicitud.hora);
-    return Math.abs(start - requested) < SLOT_DURATION_MINUTES;
+    return intervalsOverlap(requested, timeToMinutes(solicitud.hora));
   });
 }
 
